@@ -90,10 +90,35 @@ function entrySummary(entry) {
   return lines.join("\n")
 }
 
-async function confirmAndSave(ctx, entry) {
+async function confirmAndSave(ctx, entry, fromWizard = false) {
   await writeEntry(entry)
   clearSession(ctx.chat.id)
   await ctx.reply(`✅ Logged\n${entrySummary(entry)}`)
+  if (fromWizard) {
+    await ctx.reply(`FYI a shortcut for the above is:\n${buildShortcut(entry)}`)
+  }
+}
+
+function buildShortcut(entry) {
+  if (entry.type === "feed") {
+    let cmd = "/feed"
+    if (entry.amount) cmd += ` ${entry.amount}`
+    if (entry.time) cmd += ` @${entry.time}`
+    if (entry.note) cmd += ` ${entry.note.includes(" ") ? `"${entry.note}"` : entry.note}`
+    return cmd
+  }
+
+  let cmd = "/diaper"
+  if (entry.pee) cmd += " --pee"
+  if (entry.poop) cmd += " --poop"
+  if (entry.poop_color) cmd += ` --color ${entry.poop_color}`
+  if (entry.poop_texture) {
+    const tex = entry.poop_texture
+    cmd += ` --tex ${tex.includes(" ") ? `"${tex}"` : tex}`
+  }
+  if (entry.note) cmd += ` --note ${entry.note.includes(" ") ? `"${entry.note}"` : entry.note}`
+  if (entry.time) cmd += ` @${entry.time}`
+  return cmd
 }
 
 // ── Feed ──────────────────────────────────────────────
@@ -281,7 +306,7 @@ function finishWizard(ctx) {
     ? buildFeedEntry(s.data)
     : buildDiaperEntry(s.data)
 
-  confirmAndSave(ctx, entry)
+  confirmAndSave(ctx, entry, true)
 }
 
 // ── Launch ────────────────────────────────────────────
