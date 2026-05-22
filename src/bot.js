@@ -95,7 +95,7 @@ async function confirmAndSave(ctx, entry, fromWizard = false) {
   clearSession(ctx.chat.id)
   await ctx.reply(`✅ Logged\n${entrySummary(entry)}`)
   if (fromWizard) {
-    await ctx.reply(`FYI a shortcut for the above is:\n${buildShortcut(entry)}`)
+    await ctx.reply(buildShortcut(entry))
   }
 }
 
