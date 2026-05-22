@@ -18,10 +18,10 @@ function pad(n) {
   return String(n).padStart(2, "0")
 }
 
-function makeTimestamp(timeStr) {
+function makeTimestamp(timeStr, fallbackDate) {
   const now = timeStr && timeStr.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{1,2}):(\d{2})$/)
     ? new Date(`${timeStr.includes("T") ? timeStr : timeStr.replace(" ", "T")}:00`)
-    : new Date()
+    : fallbackDate || new Date()
   if (timeStr && !timeStr.match(/^\d{4}-/)) {
     const m = timeStr.match(/^(\d{1,2}):(\d{2})$/)
     if (m) {
@@ -39,13 +39,13 @@ function makeTimestamp(timeStr) {
   return { ts, date, time }
 }
 
-function buildFeedEntry({ amount, note, time }) {
-  const { ts, date, time: tm } = makeTimestamp(time)
+function buildFeedEntry({ amount, note, time }, startedAt) {
+  const { ts, date, time: tm } = makeTimestamp(time, startedAt)
   return { ts, date, time: tm, type: "feed", amount: amount || "", pee: "", poop: "", poop_color: "", poop_texture: "", note: note || "" }
 }
 
-function buildDiaperEntry({ pee, poop, poop_color, poop_texture, note, time }) {
-  const { ts, date, time: tm } = makeTimestamp(time)
+function buildDiaperEntry({ pee, poop, poop_color, poop_texture, note, time }, startedAt) {
+  const { ts, date, time: tm } = makeTimestamp(time, startedAt)
   return { ts, date, time: tm, type: "diaper", amount: "", pee: pee ? "yes" : "", poop: poop ? "yes" : "", poop_color: poop_color || "", poop_texture: poop_texture || "", note: note || "" }
 }
 
@@ -134,6 +134,7 @@ bot.command("feed", async (ctx) => {
   const s = getSession(ctx.chat.id)
   s.type = "feed"
   s.data = {}
+  s.startedAt = new Date()
   s.step = "amount"
   await ctx.reply("How many ml?")
 })
@@ -144,6 +145,7 @@ bot.command("diaper", async (ctx) => {
   const s = getSession(ctx.chat.id)
   s.type = "diaper"
   s.data = {}
+  s.startedAt = new Date()
   s.step = "pee"
   await ctx.reply("Was there pee?", {
     reply_markup: {
@@ -303,8 +305,8 @@ function finishWizard(ctx) {
   if (!s) return
 
   const entry = s.type === "feed"
-    ? buildFeedEntry(s.data)
-    : buildDiaperEntry(s.data)
+    ? buildFeedEntry(s.data, s.startedAt)
+    : buildDiaperEntry(s.data, s.startedAt)
 
   confirmAndSave(ctx, entry, true)
 }
