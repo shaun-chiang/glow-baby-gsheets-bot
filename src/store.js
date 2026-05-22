@@ -1,36 +1,68 @@
-import { appendFileSync, existsSync, writeFileSync } from "fs"
+import { appendFileSync } from "fs"
 import { join, dirname } from "path"
 import { fileURLToPath } from "url"
+import { JWT } from "google-auth-library"
+import { GoogleSpreadsheet } from "google-spreadsheet"
+import { config } from "./config.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const DATA_DIR = join(__dirname, "..", "data")
 const JSONL_FILE = join(DATA_DIR, "entries.jsonl")
-const CSV_FILE = join(DATA_DIR, "entries.csv")
 
-const CSV_HEADER = "ts,date,time,type,amount,pee,poop,poop_color,poop_texture,note\n"
+const HEADERS = ["ts", "date", "time", "type", "amount", "pee", "poop", "poop_color", "poop_texture", "note"]
 
-if (!existsSync(CSV_FILE)) {
-  writeFileSync(CSV_FILE, CSV_HEADER)
-}
+let sheet = null
 
-function toCsvValue(val) {
-  if (val === null || val === undefined) return ""
-  const s = String(val)
-  if (s.includes(",") || s.includes('"') || s.includes("\n")) {
-    return `"${s.replace(/"/g, '""')}"`
+async function initSheet() {
+  const auth = new JWT({
+    email: config.serviceAccount.client_email,
+    key: config.serviceAccount.private_key,
+    scopes: ["https://www.googleapis.com/auth/spreadsheets"],
+  })
+
+  const doc = new GoogleSpreadsheet(config.sheetId, auth)
+  await doc.loadInfo()
+
+  let target = doc.sheetsByIndex[0]
+  if (!target) {
+    target = await doc.addSheet({ title: "Entries", headerValues: HEADERS })
+    sheet = target
+    return
   }
-  return s
+
+  try {
+    await target.loadHeaderRow()
+    const existing = [...target.headerValues]
+    const hasAll = HEADERS.every(h => existing.includes(h))
+    if (!hasAll) {
+      await target.setHeaderRow(HEADERS)
+    }
+  } catch {
+    await target.setHeaderRow(HEADERS)
+  }
+
+  sheet = target
 }
 
-function toCsvRow(entry) {
-  const fields = ["ts", "date", "time", "type", "amount", "pee", "poop", "poop_color", "poop_texture", "note"]
-  return fields.map(f => toCsvValue(entry[f])).join(",") + "\n"
-}
-
-export function writeEntry(entry) {
+export async function writeEntry(entry) {
   const jsonl = JSON.stringify(entry) + "\n"
-  const csv = toCsvRow(entry)
   appendFileSync(JSONL_FILE, jsonl)
-  appendFileSync(CSV_FILE, csv)
-  return entry
+
+  if (sheet) {
+    try {
+      const row = HEADERS.map(f => entry[f] ?? "")
+      await sheet.addRow(row)
+    } catch (err) {
+      console.error("Failed to write to Google Sheet:", err.message)
+    }
+  }
+}
+
+export async function initStore() {
+  try {
+    await initSheet()
+    console.log("Google Sheets connected")
+  } catch (err) {
+    console.error("Google Sheets init failed, data will only be saved locally:", err.message)
+  }
 }

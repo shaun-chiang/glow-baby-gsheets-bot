@@ -91,7 +91,7 @@ function entrySummary(entry) {
 }
 
 async function confirmAndSave(ctx, entry) {
-  writeEntry(entry)
+  await writeEntry(entry)
   clearSession(ctx.chat.id)
   await ctx.reply(`✅ Logged\n${entrySummary(entry)}`)
 }
