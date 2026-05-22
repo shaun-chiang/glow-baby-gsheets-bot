@@ -1,20 +1,22 @@
-# glow-baby-gsheets-bot
+# glow-baby-bot
 
-Replaces the paywalled Glow Baby app with a Telegram bot that logs feeds and diaper changes. Entries are stored locally in a JSONL format designed to map onto Glow Baby's CSV export schema — once we have the export file, rows will be pushed to Google Sheets in the same shape.
+A Telegram bot that brings the Glow Baby experience to chat. Log feeds and diaper changes right from Telegram — quick `/feed 120` or step through the interactive diaper wizard.
 
 ## Commands
 
-- `/feed` — log a feed
-- `/diaper [type]` — log a diaper (e.g. `/diaper wet`, `/diaper poopy`)
+- `/feed [ml] [@datetime] [note]` — log a feed (e.g. `/feed 120 @14:30`)
+- `/diaper` — log a diaper (interactive wizard: pee, poop, color, texture)
+- `/skip` — skip optional wizard step
+- `/cancel` — cancel current input
 - `/start` — show help
 
 ## Setup
 
 ```
 cp .env.example .env
-# fill in BOT_TOKEN
+# fill in BOT_TOKEN and TIMEZONE
 npm install
 npm start
 ```
 
-Data is stored in `data/entries.jsonl`.
+Data is stored in `data/entries.jsonl` and `data/entries.csv`.
