@@ -311,10 +311,41 @@ function finishWizard(ctx) {
 
 // ── Launch ────────────────────────────────────────────
 
-export function launchBot() {
-  bot.launch()
-  console.log("Bot started")
+async function startBot(retries = 5) {
+  for (let i = 0; i < retries; i++) {
+    try {
+      await bot.launch()
+      console.log("Bot started")
+      return
+    } catch (err) {
+      if (err?.response?.error_code === 409) {
+        const wait = Math.min(1000 * 2 ** i, 30000)
+        console.error(`409 Conflict (another instance?), retrying in ${wait}ms (${i + 1}/${retries})`)
+        await new Promise(r => setTimeout(r, wait))
+        continue
+      }
+      throw err
+    }
+  }
+  console.error("Bot failed to start after all retries")
 }
+
+export function launchBot() {
+  startBot().catch(err => {
+    console.error("Fatal bot error:", err)
+    process.exit(1)
+  })
+}
+
+process.on("uncaughtException", (err) => {
+  console.error("Uncaught exception:", err)
+  bot.stop("uncaughtException").catch(() => {})
+  process.exit(1)
+})
+
+process.on("unhandledRejection", (err) => {
+  console.error("Unhandled rejection:", err)
+})
 
 process.once("SIGINT", () => bot.stop("SIGINT"))
 process.once("SIGTERM", () => bot.stop("SIGTERM"))
