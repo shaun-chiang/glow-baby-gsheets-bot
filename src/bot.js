@@ -170,6 +170,15 @@ function formatDate(d) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
 
+function timeAgo(date) {
+  const diff = Math.round((Date.now() - date) / 60000)
+  if (diff < 1) return "~1m"
+  if (diff < 60) return `${diff}m`
+  const h = Math.floor(diff / 60)
+  const m = diff % 60
+  return m ? `${h}h ${m}m` : `${h}h`
+}
+
 bot.command("logs", async (ctx) => {
   const parts = ctx.message.text.split(/\s+/).slice(1)
   let from, to
@@ -194,13 +203,19 @@ bot.command("logs", async (ctx) => {
     return
   }
 
+  const feeds = entries.filter(e => e.type === "feed").sort((a, b) => b.ts.localeCompare(a.ts))
+  let msg = ""
+  if (feeds.length) {
+    msg += `🕐 ${timeAgo(new Date(feeds[0].ts))} since last feed\n`
+  }
+  msg += `📋 Logs ${from} → ${to}\n`
+
   const grouped = {}
   for (const e of entries) {
     if (!grouped[e.date]) grouped[e.date] = []
     grouped[e.date].push(e)
   }
 
-  let msg = `📋 Logs ${from} → ${to}\n`
   for (const [date, items] of Object.entries(grouped)) {
     msg += `\n📅 ${date}\n`
     for (const e of items) {
