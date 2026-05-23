@@ -56,5 +56,4 @@ npm start
 
 ## Data Storage
 
-- **Google Sheets** — each entry is appended as a new row (primary storage)
-- **`data/entries.jsonl`** — local JSONL backup (one JSON object per line)
+All entries are stored in **Google Sheets** — each entry is appended as a new row.

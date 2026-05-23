@@ -1,6 +1,6 @@
 import { Telegraf } from "telegraf"
 import { config } from "./config.js"
-import { writeEntry } from "./store.js"
+import { writeEntry, readEntries } from "./store.js"
 
 const bot = new Telegraf(config.botToken)
 const sessions = new Map()
@@ -166,11 +166,73 @@ bot.command("cancel", (ctx) => {
 
 bot.command("skip", (ctx) => advanceWizard(ctx))
 
+function formatDate(d) {
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
+}
+
+bot.command("logs", async (ctx) => {
+  const parts = ctx.message.text.split(/\s+/).slice(1)
+  let from, to
+
+  if (parts.length === 2) {
+    from = parts[0]
+    to = parts[1]
+  } else if (parts.length === 1) {
+    from = to = parts[0]
+  } else {
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+    from = formatDate(yesterday)
+    to = formatDate(today)
+  }
+
+  const entries = await readEntries(from, to)
+
+  if (!entries.length) {
+    await ctx.reply(`No entries from ${from} to ${to}.`)
+    return
+  }
+
+  const grouped = {}
+  for (const e of entries) {
+    if (!grouped[e.date]) grouped[e.date] = []
+    grouped[e.date].push(e)
+  }
+
+  let msg = `📋 Logs ${from} → ${to}\n`
+  for (const [date, items] of Object.entries(grouped)) {
+    msg += `\n📅 ${date}\n`
+    for (const e of items) {
+      msg += `  ${e.time} `
+      if (e.type === "feed") {
+        msg += `🍼 ${e.amount || "feed"}`
+      } else {
+        msg += "🧷 diaper"
+        if (e.pee) msg += " 💧"
+        if (e.poop) msg += " 💩"
+      }
+      if (e.note) msg += ` 📝${e.note}`
+      msg += "\n"
+    }
+  }
+
+  if (msg.length > 4000) {
+    const chunks = msg.match(/[\s\S]{1,4000}/g)
+    for (const chunk of chunks) {
+      await ctx.reply(chunk)
+    }
+  } else {
+    await ctx.reply(msg)
+  }
+})
+
 bot.command("start", (ctx) =>
   ctx.reply(
     "👶 Baby Tracker Bot\n\n" +
     "/feed [ml] [@HH:MM] [note] — log a feed\n" +
     "/diaper — log a diaper (interactive)\n" +
+    "/logs [from] [to] — show entries (default: yesterday→today)\n" +
     "/cancel — cancel current input"
   )
 )

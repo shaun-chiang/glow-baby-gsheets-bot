@@ -1,13 +1,6 @@
-import { appendFileSync } from "fs"
-import { join, dirname } from "path"
-import { fileURLToPath } from "url"
 import { JWT } from "google-auth-library"
 import { GoogleSpreadsheet } from "google-spreadsheet"
 import { config } from "./config.js"
-
-const __dirname = dirname(fileURLToPath(import.meta.url))
-const DATA_DIR = join(__dirname, "..", "data")
-const JSONL_FILE = join(DATA_DIR, "entries.jsonl")
 
 const HEADERS = ["ts", "date", "time", "type", "amount", "pee", "poop", "poop_color", "poop_texture", "note"]
 
@@ -45,16 +38,32 @@ async function initSheet() {
 }
 
 export async function writeEntry(entry) {
-  const jsonl = JSON.stringify(entry) + "\n"
-  appendFileSync(JSONL_FILE, jsonl)
+  if (!sheet) return
 
-  if (sheet) {
-    try {
-      const row = HEADERS.map(f => entry[f] ?? "")
-      await sheet.addRow(row)
-    } catch (err) {
-      console.error("Failed to write to Google Sheet:", err.message)
-    }
+  try {
+    const row = HEADERS.map(f => entry[f] ?? "")
+    await sheet.addRow(row)
+  } catch (err) {
+    console.error("Failed to write to Google Sheet:", err.message)
+  }
+}
+
+export async function readEntries(fromDate, toDate) {
+  if (!sheet) return []
+
+  try {
+    const rows = await sheet.getRows()
+    return rows
+      .map(r => {
+        const e = {}
+        HEADERS.forEach(h => { e[h] = r.get(h) ?? "" })
+        return e
+      })
+      .filter(e => e.date >= fromDate && e.date <= toDate)
+      .sort((a, b) => a.ts.localeCompare(b.ts))
+  } catch (err) {
+    console.error("Failed to read from Google Sheet:", err.message)
+    return []
   }
 }
 
@@ -63,6 +72,6 @@ export async function initStore() {
     await initSheet()
     console.log("Google Sheets connected")
   } catch (err) {
-    console.error("Google Sheets init failed, data will only be saved locally:", err.message)
+    console.error("Google Sheets init failed:", err.message)
   }
 }
