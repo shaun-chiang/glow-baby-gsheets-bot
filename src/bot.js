@@ -39,14 +39,14 @@ function makeTimestamp(timeStr, fallbackDate) {
   return { ts, date, time }
 }
 
-function buildFeedEntry({ amount, note, time }, startedAt) {
+function buildFeedEntry({ amount, note, time }, startedAt, attribution) {
   const { ts, date, time: tm } = makeTimestamp(time, startedAt)
-  return { ts, date, time: tm, type: "feed", amount: amount || "", pee: "", poop: "", poop_color: "", poop_texture: "", note: note || "" }
+  return { ts, date, time: tm, type: "feed", amount: amount || "", pee: "", poop: "", poop_color: "", poop_texture: "", note: note || "", attribution: attribution || "" }
 }
 
-function buildDiaperEntry({ pee, poop, poop_color, poop_texture, note, time }, startedAt) {
+function buildDiaperEntry({ pee, poop, poop_color, poop_texture, note, time }, startedAt, attribution) {
   const { ts, date, time: tm } = makeTimestamp(time, startedAt)
-  return { ts, date, time: tm, type: "diaper", amount: "", pee: pee ? "yes" : "", poop: poop ? "yes" : "", poop_color: poop_color || "", poop_texture: poop_texture || "", note: note || "" }
+  return { ts, date, time: tm, type: "diaper", amount: "", pee: pee ? "yes" : "", poop: poop ? "yes" : "", poop_color: poop_color || "", poop_texture: poop_texture || "", note: note || "", attribution: attribution || "" }
 }
 
 function parseFeedInline(text) {
@@ -127,7 +127,7 @@ bot.command("feed", async (ctx) => {
   const text = ctx.message.text.slice("/feed".length).trim()
   if (text) {
     const parsed = parseFeedInline(text)
-    const entry = buildFeedEntry(parsed)
+    const entry = buildFeedEntry(parsed, undefined, ctx.from.first_name)
     await confirmAndSave(ctx, entry)
     return
   }
@@ -382,8 +382,8 @@ function finishWizard(ctx) {
   if (!s) return
 
   const entry = s.type === "feed"
-    ? buildFeedEntry(s.data, s.startedAt)
-    : buildDiaperEntry(s.data, s.startedAt)
+    ? buildFeedEntry(s.data, s.startedAt, ctx.from.first_name)
+    : buildDiaperEntry(s.data, s.startedAt, ctx.from.first_name)
 
   confirmAndSave(ctx, entry, true)
 }

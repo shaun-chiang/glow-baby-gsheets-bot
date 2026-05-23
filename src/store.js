@@ -2,7 +2,7 @@ import { JWT } from "google-auth-library"
 import { GoogleSpreadsheet } from "google-spreadsheet"
 import { config } from "./config.js"
 
-const HEADERS = ["ts", "date", "time", "type", "amount", "pee", "poop", "poop_color", "poop_texture", "note"]
+const HEADERS = ["ts", "date", "time", "type", "amount", "pee", "poop", "poop_color", "poop_texture", "note", "attribution"]
 
 let sheet = null
 
