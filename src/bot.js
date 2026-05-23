@@ -242,15 +242,14 @@ bot.command("logs", async (ctx) => {
   }
 })
 
-bot.command("start", (ctx) =>
-  ctx.reply(
-    "👶 Baby Tracker Bot\n\n" +
-    "/feed [ml] [@HH:MM] [note] — log a feed\n" +
-    "/diaper — log a diaper (interactive)\n" +
-    "/logs [from] [to] — show entries (default: yesterday→today)\n" +
-    "/cancel — cancel current input"
-  )
-)
+const HELP_TEXT =
+  "👶 Baby Tracker Bot\n\n" +
+  "/feed [ml] [@HH:MM] [note] — log a feed\n" +
+  "/diaper — log a diaper (interactive)\n" +
+  "/logs [from] [to] — show entries (default: yesterday→today)\n" +
+  "/cancel — cancel current input"
+
+bot.command("start", (ctx) => ctx.reply(HELP_TEXT))
 
 // ── Diaper wizard callbacks ───────────────────────────
 
@@ -328,7 +327,10 @@ bot.action(/^d:tex:(.+)$/, (ctx) => {
 
 bot.on("text", (ctx) => {
   const s = getSession(ctx.chat.id)
-  if (!s || !s.step) return
+  if (!s || !s.step) {
+    ctx.reply(HELP_TEXT)
+    return
+  }
   if (s.step === "pee" || s.step === "poop" || s.step === "color" || s.step === "texture") return
 
   const text = ctx.message.text
