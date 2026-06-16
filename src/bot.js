@@ -1,9 +1,16 @@
 import { Telegraf } from "telegraf"
-import { config } from "./config.js"
+import { config, allowedUserIds } from "./config.js"
 import { writeEntry, readEntries } from "./store.js"
 
 const bot = new Telegraf(config.botToken)
 const sessions = new Map()
+
+bot.use((ctx, next) => {
+  if (!allowedUserIds || allowedUserIds.has(ctx.from.id)) {
+    return next()
+  }
+  return ctx.reply("You are not authorized to use this bot.")
+})
 
 function getSession(chatId) {
   if (!sessions.has(chatId)) sessions.set(chatId, {})
@@ -93,10 +100,20 @@ function entrySummary(entry) {
 async function confirmAndSave(ctx, entry, fromWizard = false) {
   await writeEntry(entry)
   clearSession(ctx.chat.id)
-  await ctx.reply(`✅ Logged\n${entrySummary(entry)}`)
-  if (fromWizard) {
-    await ctx.reply(buildShortcut(entry))
+
+  const shortcutCmd = fromWizard ? `\n\n${buildShortcut(entry)}` : ""
+  const keyboard = []
+  if (entry.type === "feed") {
+    keyboard.push([{ text: "🍼 Feed again", callback_data: "sc:feed" }])
+    keyboard.push([{ text: "🧷 Log Diaper", callback_data: "sc:diaper" }])
+  } else {
+    keyboard.push([{ text: "🧷 Diaper again", callback_data: "sc:diaper" }])
+    keyboard.push([{ text: "🍼 Log Feed", callback_data: "sc:feed" }])
   }
+
+  await ctx.reply(`✅ Logged\n${entrySummary(entry)}${shortcutCmd}`, {
+    reply_markup: { inline_keyboard: keyboard },
+  })
 }
 
 function buildShortcut(entry) {
@@ -123,6 +140,15 @@ function buildShortcut(entry) {
 
 // ── Feed ──────────────────────────────────────────────
 
+function initFeedWizard(ctx) {
+  const s = getSession(ctx.chat.id)
+  s.type = "feed"
+  s.data = {}
+  s.startedAt = new Date()
+  s.step = "amount"
+  return ctx.reply("How many ml?")
+}
+
 bot.command("feed", async (ctx) => {
   const text = ctx.message.text.slice("/feed".length).trim()
   if (text) {
@@ -131,23 +157,18 @@ bot.command("feed", async (ctx) => {
     await confirmAndSave(ctx, entry)
     return
   }
-  const s = getSession(ctx.chat.id)
-  s.type = "feed"
-  s.data = {}
-  s.startedAt = new Date()
-  s.step = "amount"
-  await ctx.reply("How many ml?")
+  await initFeedWizard(ctx)
 })
 
 // ── Diaper ────────────────────────────────────────────
 
-bot.command("diaper", async (ctx) => {
+function initDiaperWizard(ctx) {
   const s = getSession(ctx.chat.id)
   s.type = "diaper"
   s.data = {}
   s.startedAt = new Date()
   s.step = "pee"
-  await ctx.reply("Was there pee?", {
+  return ctx.reply("Was there pee?", {
     reply_markup: {
       inline_keyboard: [
         [{ text: "Yes", callback_data: "d:pee:yes" }],
@@ -155,6 +176,10 @@ bot.command("diaper", async (ctx) => {
       ],
     },
   })
+}
+
+bot.command("diaper", async (ctx) => {
+  await initDiaperWizard(ctx)
 })
 
 // ── Cancel ────────────────────────────────────────────
@@ -179,23 +204,7 @@ function timeAgo(date) {
   return m ? `${h}h ${m}m` : `${h}h`
 }
 
-bot.command("logs", async (ctx) => {
-  const parts = ctx.message.text.split(/\s+/).slice(1)
-  let from, to
-
-  if (parts.length === 2) {
-    from = parts[0]
-    to = parts[1]
-  } else if (parts.length === 1) {
-    from = to = parts[0]
-  } else {
-    const today = new Date()
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
-    from = formatDate(yesterday)
-    to = formatDate(today)
-  }
-
+async function showLogs(ctx, from, to) {
   const entries = await readEntries(from, to)
 
   if (!entries.length) {
@@ -240,6 +249,26 @@ bot.command("logs", async (ctx) => {
   } else {
     await ctx.reply(msg)
   }
+}
+
+bot.command("logs", async (ctx) => {
+  const parts = ctx.message.text.split(/\s+/).slice(1)
+  let from, to
+
+  if (parts.length === 2) {
+    from = parts[0]
+    to = parts[1]
+  } else if (parts.length === 1) {
+    from = to = parts[0]
+  } else {
+    const today = new Date()
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+    from = formatDate(yesterday)
+    to = formatDate(today)
+  }
+
+  await showLogs(ctx, from, to)
 })
 
 const HELP_TEXT =
@@ -249,7 +278,17 @@ const HELP_TEXT =
   "/logs [from] [to] — show entries (default: yesterday→today)\n" +
   "/cancel — cancel current input"
 
-bot.command("start", (ctx) => ctx.reply(HELP_TEXT))
+bot.command("start", (ctx) =>
+  ctx.reply("👶 Baby Tracker Bot", {
+    reply_markup: {
+      inline_keyboard: [
+        [{ text: "🍼 Log Feed", callback_data: "sc:feed" }],
+        [{ text: "🧷 Log Diaper", callback_data: "sc:diaper" }],
+        [{ text: "📋 Recent Logs", callback_data: "sc:logs" }],
+      ],
+    },
+  })
+)
 
 // ── Diaper wizard callbacks ───────────────────────────
 
@@ -321,6 +360,26 @@ bot.action(/^d:tex:(.+)$/, (ctx) => {
   s.data.poop_texture = ctx.match[1].replace(/_/g, " ")
   s.step = "note"
   ctx.editMessageText("Any notes? (send or /skip)")
+})
+
+// ── Shortcut buttons ──────────────────────────────────
+
+bot.action("sc:feed", (ctx) => {
+  ctx.answerCbQuery()
+  initFeedWizard(ctx)
+})
+
+bot.action("sc:diaper", (ctx) => {
+  ctx.answerCbQuery()
+  initDiaperWizard(ctx)
+})
+
+bot.action("sc:logs", async (ctx) => {
+  ctx.answerCbQuery()
+  const today = new Date()
+  const yesterday = new Date(today)
+  yesterday.setDate(yesterday.getDate() - 1)
+  await showLogs(ctx, formatDate(yesterday), formatDate(today))
 })
 
 // ── Wizard text handler ───────────────────────────────

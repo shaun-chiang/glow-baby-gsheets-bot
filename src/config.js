@@ -20,6 +20,11 @@ if (!existsSync(serviceAccountKeyPath)) {
 
 const serviceAccount = JSON.parse(readFileSync(serviceAccountKeyPath, "utf-8"))
 
+const rawAllowed = process.env.ALLOWED_USER_IDS || ""
+export const allowedUserIds = rawAllowed
+  ? new Set(rawAllowed.split(",").map(s => Number(s.trim())))
+  : null
+
 export const config = {
   botToken: required("BOT_TOKEN"),
   timezone: process.env.TIMEZONE || "UTC",
